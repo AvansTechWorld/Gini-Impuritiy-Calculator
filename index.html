@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#12213A" />
+<title>Gini Impurity Calculator</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="description" content="Calculate Gini impurity for a node's class counts, and evaluate a split's weighted Gini and Gini decrease." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,560;9..144,650&family=IBM+Plex+Mono:wght@400;500;600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #12213A; --ink-deep: #0C1830; --paper: #EDE6D6; --paper-dim: #E1D8C3;
+    --brass: #B8863B; --brass-bright: #D3A257; --teal: #3E7C7C; --rust: #A63D40;
+    --line: rgba(237,230,214,0.14); --line-strong: rgba(237,230,214,0.28);
+    --text-on-ink: #EDE6D6; --text-on-ink-dim: rgba(237,230,214,0.62);
+    --text-on-paper: #1B1F2A; --text-on-paper-dim: rgba(27,31,42,0.62);
+    --radius: 10px;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --display: 'Fraunces', Georgia, serif;
+    --sans: 'Public Sans', -apple-system, sans-serif;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: linear-gradient(180deg, var(--ink) 0%, var(--ink-deep) 100%);
+    background-attachment: fixed; color: var(--text-on-ink); font-family: var(--sans);
+    min-height: 100vh; -webkit-font-smoothing: antialiased;
+  }
+  body::before{
+    content:""; position: fixed; inset:0;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 34px 34px; opacity: 0.35; pointer-events: none; z-index: 0;
+  }
+  .wrap{ position: relative; z-index:1; max-width: 920px; margin: 0 auto; padding: 28px 18px 80px; }
+
+  header.hero{ padding: 18px 4px 30px; border-bottom: 1px solid var(--line-strong); margin-bottom: 28px; }
+  .eyebrow{ font-family: var(--mono); font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--brass-bright); display:flex; align-items:center; gap:10px; margin-bottom: 14px; }
+  .eyebrow .dot{ width:6px; height:6px; border-radius:50%; background: var(--brass-bright); }
+  h1{ font-family: var(--display); font-optical-sizing: auto; font-weight: 650; font-size: clamp(30px, 6vw, 48px); line-height: 1.04; margin: 0 0 12px; letter-spacing: -0.01em; }
+  h1 em{ font-style: italic; color: var(--brass-bright); }
+  .sub{ font-size: 15px; color: var(--text-on-ink-dim); max-width: 62ch; line-height: 1.55; margin: 0; }
+
+  .panel{ background: var(--paper); color: var(--text-on-paper); border-radius: var(--radius); padding: 22px; margin-bottom: 20px; box-shadow: 0 1px 0 rgba(0,0,0,0.2), 0 12px 30px -14px rgba(0,0,0,0.5); }
+  .panel-head{ display:flex; align-items:baseline; justify-content:space-between; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .panel-title{ font-family: var(--display); font-weight: 650; font-size: 20px; margin:0; }
+  .panel-num{ font-family: var(--mono); font-size: 12px; color: var(--text-on-paper-dim); letter-spacing: 0.08em; }
+
+  label{ font-family: var(--sans); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-on-paper-dim); display:block; margin-bottom:6px; }
+  .hint{ font-family: var(--sans); font-size: 12.5px; color: var(--text-on-paper-dim); margin-top: 6px; line-height:1.5; }
+
+  input[type="text"], input[type="number"]{
+    width:100%; font-family: var(--mono); font-size: 15px; padding: 10px 12px; border-radius: 7px;
+    border: 1.5px solid var(--ink); background:#fff; color: var(--ink);
+  }
+  input:focus{ outline:2px solid var(--brass); outline-offset:1px; }
+
+  .class-row{
+    display:grid; grid-template-columns: 1fr 100px 34px; gap:8px; align-items:end;
+    background:#fff; border:1px solid rgba(18,33,58,0.14); border-radius:8px; padding:10px; margin-bottom:10px;
+  }
+  .class-row label{ margin-bottom:4px; }
+  .class-row .rm{
+    height:38px; width:34px; border-radius:6px; border:1.5px solid var(--rust); background:transparent; color:var(--rust);
+    font-family:var(--mono); font-weight:700; cursor:pointer;
+  }
+  .class-row .rm:hover{ background: rgba(166,61,64,0.1); }
+
+  .btn{ font-family: var(--sans); font-weight: 700; font-size: 13.5px; letter-spacing:0.01em; padding: 11px 18px; border-radius: 7px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--paper); cursor:pointer; transition: transform 0.08s ease, background 0.15s ease; }
+  .btn:hover{ background:#000; }
+  .btn:active{ transform: translateY(1px); }
+  .btn.ghost{ background: transparent; color: var(--ink); }
+  .btn.ghost:hover{ background: rgba(18,33,58,0.08); }
+  .btn.brass{ background: var(--brass); border-color: var(--brass); color: #1B1F2A; }
+  .btn.brass:hover{ background: var(--brass-bright); }
+  .btn.small{ padding: 8px 14px; font-size: 12.5px; }
+  .btn:focus-visible, input:focus-visible{ outline: 3px solid var(--brass); outline-offset: 2px; }
+
+  .status{ font-family: var(--mono); font-size: 13px; padding: 10px 14px; border-radius: 7px; margin-top:14px; display:flex; align-items:center; gap:10px; flex-wrap: wrap; }
+  .status.ok{ background: rgba(62,124,124,0.14); color: #24504f; border:1px solid rgba(62,124,124,0.4); }
+  .status.bad{ background: rgba(166,61,64,0.12); color: #7c2c2e; border:1px solid rgba(166,61,64,0.4); }
+  .status.warn{ background: rgba(184,134,59,0.14); color: #6b4d1f; border:1px solid rgba(184,134,59,0.4); }
+
+  table.results{ width:100%; border-collapse: collapse; font-family: var(--mono); font-size: 13.5px; margin-top: 6px; }
+  table.results th{ text-align:left; font-family: var(--sans); font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color: var(--text-on-paper-dim); padding: 6px 8px; border-bottom: 1.5px solid var(--ink); }
+  table.results td{ padding: 8px 8px; border-bottom: 1px solid rgba(18,33,58,0.12); }
+
+  .split-grid{ display:grid; grid-template-columns: 1fr; gap: 18px; }
+  @media (min-width: 720px){ .split-grid{ grid-template-columns: 1fr 1fr; } }
+  .child-box{ background: rgba(255,255,255,0.5); border: 1px dashed rgba(18,33,58,0.25); border-radius: 8px; padding: 14px; }
+  .child-box h3{ font-family: var(--display); font-size: 16px; margin: 0 0 12px; }
+
+  .key-facts{ display:grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-top:14px; }
+  .fact{ background:#fff; border:1px solid rgba(18,33,58,0.14); border-radius:7px; padding:10px 12px; }
+  .fact .k{ font-family: var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.08em; color: var(--text-on-paper-dim); }
+  .fact .v{ font-family: var(--mono); font-size:16px; font-weight:700; margin-top:2px; }
+  .fact.good .v{ color: var(--teal); }
+  .fact.bad .v{ color: var(--rust); }
+
+  details.steps{ margin-top:18px; border-top: 1px solid rgba(18,33,58,0.14); padding-top:16px; }
+  details.steps > summary{ cursor:pointer; font-family: var(--sans); font-weight:700; font-size: 13.5px; color: var(--ink); list-style: none; display:flex; align-items:center; gap:8px; }
+  details.steps > summary::-webkit-details-marker{ display:none; }
+  details.steps > summary::before{ content:"▸"; font-size:11px; transition: transform 0.15s ease; }
+  details.steps[open] > summary::before{ transform: rotate(90deg); }
+
+  .ledger{ margin-top:14px; display:flex; flex-direction:column; gap:10px; }
+  .ledger-block{ background: #fff; border: 1px solid rgba(18,33,58,0.16); border-radius: 8px; padding: 12px 14px; font-family: var(--mono); font-size: 12.5px; line-height: 1.7; color: var(--ink); }
+  .ledger-block .lbl{ font-weight:700; color: var(--brass); margin-right: 6px; }
+  .ledger-block .eq{ display:block; overflow-x:auto; white-space: pre; padding: 2px 0; }
+
+  footer{ text-align:center; padding: 34px 10px 10px; color: var(--text-on-ink-dim); font-size:12.5px; font-family: var(--sans); line-height:1.7; }
+
+  .install-banner{ display:none; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; background: var(--brass); color:#1B1F2A; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-family: var(--sans); font-size: 13.5px; font-weight:600; }
+  .install-banner.show{ display:flex; }
+  .install-banner .btn{ padding: 8px 14px; font-size:12.5px; }
+
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow"><span class="dot"></span>DECISION TREE SPLITTING · CART</div>
+    <h1>Gini Impurity <em>Calculator</em></h1>
+    <p class="sub">Enter a node's class counts to get its Gini impurity, then test a candidate split across two child nodes to see the weighted Gini and the Gini decrease — with every step shown.</p>
+  </header>
+
+  <div class="install-banner" id="installBanner">
+    <span>Install this as an app for offline use.</span>
+    <button class="btn" id="installBtn">Install</button>
+  </div>
+
+  <!-- PARENT NODE PANEL -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">1 · Node (parent) class counts</h2>
+      <span class="panel-num" id="parentCount">0 classes</span>
+    </div>
+
+    <div id="parentRows"></div>
+    <button class="btn ghost" id="addParentRowBtn" type="button">+ Add class</button>
+
+    <div style="height:16px"></div>
+    <button class="btn brass" id="calcParentBtn" type="button">Calculate Gini →</button>
+    <div id="parentStatus"></div>
+
+    <div id="parentResultsWrap" style="display:none;">
+      <table class="results" id="parentTable">
+        <thead><tr><th>Class</th><th>Count</th><th>p</th><th>p²</th></tr></thead>
+        <tbody id="parentBody"></tbody>
+      </table>
+      <div class="key-facts" id="parentFacts"></div>
+
+      <details class="steps" id="parentWorkingWrap">
+        <summary>Show the working</summary>
+        <div class="ledger" id="parentWorking"></div>
+      </details>
+    </div>
+  </section>
+
+  <!-- SPLIT PANEL -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2 class="panel-title">2 · Evaluate a split</h2>
+      <span class="panel-num">weighted Gini &amp; decrease</span>
+    </div>
+    <p class="hint" style="margin-top:0;">Calculate the parent above first if you want the Gini decrease shown here too. Otherwise this section works standalone.</p>
+
+    <div class="split-grid">
+      <div class="child-box">
+        <h3>Left child</h3>
+        <div id="leftRows"></div>
+        <button class="btn ghost small" data-side="left" type="button">+ Add class</button>
+      </div>
+      <div class="child-box">
+        <h3>Right child</h3>
+        <div id="rightRows"></div>
+        <button class="btn ghost small" data-side="right" type="button">+ Add class</button>
+      </div>
+    </div>
+
+    <div style="height:16px"></div>
+    <button class="btn brass" id="calcSplitBtn" type="button">Calculate split →</button>
+    <div id="splitStatus"></div>
+
+    <div id="splitResultsWrap" style="display:none;">
+      <div class="key-facts" id="splitFacts"></div>
+
+      <details class="steps" id="splitWorkingWrap">
+        <summary>Show the working</summary>
+        <div class="ledger" id="splitWorking"></div>
+      </details>
+    </div>
+  </section>
+
+  <footer>
+    Gini impurity of a node = 1 − Σ(pᵢ²), where pᵢ is the proportion of class i in that node. A split's weighted Gini = (n_left/n_total)×Gini_left + (n_right/n_total)×Gini_right. Gini decrease = parent Gini − weighted Gini; CART picks the split that maximizes this decrease.<br>
+    Works offline once installed · all calculation happens on this device.
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Core math ----------
+  function computeGini(rows){
+    // rows: [{label, count}]
+    const clean = rows.filter(r => r.count > 0);
+    const total = clean.reduce((s, r) => s + r.count, 0);
+    if (total <= 0) return null;
+    const classes = clean.map(r => {
+      const p = r.count / total;
+      return { label: r.label, count: r.count, p, p2: p * p };
+    });
+    const sumP2 = classes.reduce((s, c) => s + c.p2, 0);
+    const gini = 1 - sumP2;
+    return { total, classes, sumP2, gini };
+  }
+
+  function fmt(n, d){
+    if (!isFinite(n)) return "—";
+    return n.toFixed(d);
+  }
+
+  const DECIMALS = 4;
+
+  // ---------- Generic row-list builder ----------
+  function makeRowManager(containerEl, addBtnEl, seqPrefix){
+    let seq = 0;
+    function addRow(label, count){
+      seq++;
+      const id = seqPrefix + seq;
+      const div = document.createElement("div");
+      div.className = "class-row";
+      div.dataset.id = id;
+      div.innerHTML = `
+        <div>
+          <label>Class label</label>
+          <input type="text" class="cls-label" value="${label != null ? label : "Class " + seq}">
+        </div>
+        <div>
+          <label>Count</label>
+          <input type="number" class="cls-count" value="${count != null ? count : ""}" min="0" step="1" inputmode="numeric">
+        </div>
+        <button class="rm" type="button" title="Remove row" aria-label="Remove row">✕</button>
+      `;
+      div.querySelector(".rm").addEventListener("click", () => { div.remove(); if (onChange) onChange(); });
+      containerEl.appendChild(div);
+      if (onChange) onChange();
+    }
+    let onChange = null;
+    function setOnChange(fn){ onChange = fn; }
+    function getRows(){
+      return Array.from(containerEl.querySelectorAll(".class-row")).map(el => {
+        const label = (el.querySelector(".cls-label").value || "Class").trim() || "Class";
+        const count = parseFloat(el.querySelector(".cls-count").value);
+        return { label, count: isNaN(count) ? 0 : count };
+      });
+    }
+    if (addBtnEl) addBtnEl.addEventListener("click", () => addRow());
+    return { addRow, getRows, setOnChange };
+  }
+
+  const parentMgr = makeRowManager(document.getElementById("parentRows"), document.getElementById("addParentRowBtn"), "p");
+  const leftMgr = makeRowManager(document.getElementById("leftRows"), document.querySelector('button[data-side="left"]'), "l");
+  const rightMgr = makeRowManager(document.getElementById("rightRows"), document.querySelector('button[data-side="right"]'), "r");
+
+  const parentCount = document.getElementById("parentCount");
+  parentMgr.setOnChange(() => {
+    const n = document.getElementById("parentRows").querySelectorAll(".class-row").length;
+    parentCount.textContent = n + " class" + (n === 1 ? "" : "es");
+  });
+
+  // ---------- Render helpers ----------
+  function renderNodeTable(bodyEl, result){
+    bodyEl.innerHTML = result.classes.map(c =>
+      `<tr><td>${c.label}</td><td>${c.count}</td><td>${fmt(c.p, DECIMALS)}</td><td>${fmt(c.p2, DECIMALS)}</td></tr>`
+    ).join("");
+  }
+
+  function nodeWorkingHtml(title, result){
+    const sumTerms = result.classes.map(c => fmt(c.p2, DECIMALS)).join(" + ");
+    return `<div class="ledger-block">
+<span class="lbl">${title}: total</span>
+<span class="eq">${result.classes.map(c=>c.count).join(" + ")} = ${result.total}</span>
+</div>
+<div class="ledger-block">
+<span class="lbl">${title}: proportions</span>
+<span class="eq">${result.classes.map(c => `p(${c.label}) = ${c.count} ÷ ${result.total} = ${fmt(c.p, DECIMALS)}`).join("\n")}</span>
+</div>
+<div class="ledger-block">
+<span class="lbl">${title}: Gini</span>
+<span class="eq">1 − (${sumTerms}) = 1 − ${fmt(result.sumP2, DECIMALS)} = ${fmt(result.gini, DECIMALS)}</span>
+</div>`;
+  }
+
+  // ---------- Parent calculation ----------
+  let lastParentGini = null;
+  let lastParentTotal = null;
+
+  document.getElementById("calcParentBtn").addEventListener("click", () => {
+    const rows = parentMgr.getRows();
+    const result = computeGini(rows);
+    const statusEl = document.getElementById("parentStatus");
+    const wrap = document.getElementById("parentResultsWrap");
+
+    if (!result){
+      statusEl.innerHTML = `<div class="status bad">Add at least one class with a count greater than zero.</div>`;
+      wrap.style.display = "none";
+      lastParentGini = null;
+      lastParentTotal = null;
+      return;
+    }
+
+    lastParentGini = result.gini;
+    lastParentTotal = result.total;
+
+    renderNodeTable(document.getElementById("parentBody"), result);
+
+    document.getElementById("parentFacts").innerHTML = `
+      <div class="fact"><div class="k">Total samples</div><div class="v">${result.total}</div></div>
+      <div class="fact"><div class="k">Σ p²</div><div class="v">${fmt(result.sumP2, DECIMALS)}</div></div>
+      <div class="fact good"><div class="k">Gini impurity</div><div class="v">${fmt(result.gini, DECIMALS)}</div></div>
+    `;
+
+    document.getElementById("parentWorking").innerHTML = nodeWorkingHtml("Parent", result);
+
+    statusEl.innerHTML = `<div class="status ok">✓ Parent Gini impurity = ${fmt(result.gini, DECIMALS)}${result.gini === 0 ? " — this node is pure." : ""}</div>`;
+    wrap.style.display = "block";
+  });
+
+  // ---------- Split calculation ----------
+  document.getElementById("calcSplitBtn").addEventListener("click", () => {
+    const leftRows = leftMgr.getRows();
+    const rightRows = rightMgr.getRows();
+    const leftResult = computeGini(leftRows);
+    const rightResult = computeGini(rightRows);
+    const statusEl = document.getElementById("splitStatus");
+    const wrap = document.getElementById("splitResultsWrap");
+
+    if (!leftResult || !rightResult){
+      statusEl.innerHTML = `<div class="status bad">Add at least one class with a count greater than zero to both the left and right child.</div>`;
+      wrap.style.display = "none";
+      return;
+    }
+
+    const nTotal = leftResult.total + rightResult.total;
+    const wLeft = leftResult.total / nTotal;
+    const wRight = rightResult.total / nTotal;
+    const weightedGini = wLeft * leftResult.gini + wRight * rightResult.gini;
+
+    let factsHtml = `
+      <div class="fact"><div class="k">Left n / Gini</div><div class="v">${leftResult.total} / ${fmt(leftResult.gini, DECIMALS)}</div></div>
+      <div class="fact"><div class="k">Right n / Gini</div><div class="v">${rightResult.total} / ${fmt(rightResult.gini, DECIMALS)}</div></div>
+      <div class="fact good"><div class="k">Weighted Gini</div><div class="v">${fmt(weightedGini, DECIMALS)}</div></div>
+    `;
+
+    let workingHtml = nodeWorkingHtml("Left child", leftResult) + nodeWorkingHtml("Right child", rightResult);
+    workingHtml += `<div class="ledger-block">
+<span class="lbl">Weighted Gini</span>
+<span class="eq">(${leftResult.total}/${nTotal})×${fmt(leftResult.gini,DECIMALS)} + (${rightResult.total}/${nTotal})×${fmt(rightResult.gini,DECIMALS)}
+= ${fmt(wLeft,DECIMALS)}×${fmt(leftResult.gini,DECIMALS)} + ${fmt(wRight,DECIMALS)}×${fmt(rightResult.gini,DECIMALS)}
+= ${fmt(weightedGini, DECIMALS)}</span>
+</div>`;
+
+    let statusMsg = `<div class="status ok">✓ Weighted Gini of the split = ${fmt(weightedGini, DECIMALS)}.</div>`;
+
+    if (lastParentGini !== null){
+      const decrease = lastParentGini - weightedGini;
+      factsHtml += `<div class="fact ${decrease > 0 ? "good" : "bad"}"><div class="k">Gini decrease</div><div class="v">${fmt(decrease, DECIMALS)}</div></div>`;
+      workingHtml += `<div class="ledger-block">
+<span class="lbl">Gini decrease</span>
+<span class="eq">Parent Gini − weighted Gini = ${fmt(lastParentGini,DECIMALS)} − ${fmt(weightedGini,DECIMALS)} = ${fmt(decrease, DECIMALS)}</span>
+</div>`;
+      statusMsg = `<div class="status ok">✓ Weighted Gini = ${fmt(weightedGini, DECIMALS)} · Gini decrease from parent = ${fmt(decrease, DECIMALS)}.</div>`;
+      if (nTotal !== lastParentTotal){
+        statusMsg += `<div class="status warn">⚠ Left + right totals (${nTotal}) don't match the parent's total (${lastParentTotal}) — the decrease figure may not be meaningful unless every parent sample lands in one of the two children.</div>`;
+      }
+    } else {
+      workingHtml += `<div class="ledger-block">Calculate the parent node above to also see the Gini decrease here.</div>`;
+    }
+
+    document.getElementById("splitFacts").innerHTML = factsHtml;
+    document.getElementById("splitWorking").innerHTML = workingHtml;
+    statusEl.innerHTML = statusMsg;
+    wrap.style.display = "block";
+  });
+
+  // ---------- Init with a worked example ----------
+  parentMgr.addRow("Yes", 9);
+  parentMgr.addRow("No", 5);
+
+  leftMgr.addRow("Yes", 8);
+  leftMgr.addRow("No", 1);
+
+  rightMgr.addRow("Yes", 1);
+  rightMgr.addRow("No", 4);
+
+  // ---------- PWA install prompt ----------
+  let deferredPrompt = null;
+  const banner = document.getElementById("installBanner");
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    banner.classList.add("show");
+  });
+  document.getElementById("installBtn").addEventListener("click", async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    banner.classList.remove("show");
+  });
+  window.addEventListener("appinstalled", () => banner.classList.remove("show"));
+
+  // ---------- Service worker ----------
+  if ("serviceWorker" in navigator){
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+})();
+</script>
+</body>
+</html>

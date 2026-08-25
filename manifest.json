@@ -1,0 +1,14 @@
+{
+  "name": "Gini Impurity Calculator",
+  "short_name": "Gini Calc",
+  "description": "Calculate Gini impurity for a node's class counts, and evaluate a split's weighted Gini and Gini decrease.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#12213A",
+  "theme_color": "#12213A",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
